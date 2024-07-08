@@ -45,93 +45,120 @@ def generate_dump(
             available = ""
             # Check if the XML of the Handeling can be retrieved
             publications = retrieve_publications(
-                query_list=["dt.identifier == " + handeling_id_officielebekendmakingen]
+                query_list=[
+                    "dt.identifier == " + str(handeling_id_officielebekendmakingen)
+                ]
             )
-            if len(publications) == 0:
+            # Check if there is (at least) one result, the minute. Aditionally, check if the minute is not None to account for one specific case where there is a minute found, but it is None.
+            if len(publications) == 0 or publications[0] is None:
                 print(
                     "No publications found for the given minute_id: "
-                    + handeling_id_officielebekendmakingen
+                    + str(handeling_id_officielebekendmakingen)
                 )
             else:
                 minute = publications[0]
                 xml_url = next((d["xml"] for d in minute.itemUrl if "xml" in d), None)
                 available = minute.available[0]
 
-            tuple_existing_refs, tuple_explicit_refs, tuple_local_alias_refs = (
-                extract_links_from_minute(
-                    xml_url=xml_url, existing_references=minute.behandeldDossier
-                )
-            )
-
-            combined_tuples = tuple_existing_refs.copy()
-            combined_tuples.extend(tuple_explicit_refs)
-            combined_tuples.extend(tuple_local_alias_refs)
-
-            count_original = Counter([key for key, value in tuple_existing_refs])
-            count_detected_explicit = Counter(
-                [key for key, value in tuple_explicit_refs]
-            )
-            count_detected_local_alias = Counter(
-                [key for key, value in tuple_local_alias_refs]
-            )
-
-            all_unique_refs = set(
-                [key for key, value in tuple_existing_refs]
-                + [key for key, value in tuple_explicit_refs]
-                + [key for key, value in tuple_local_alias_refs]
-            )
-
-            rows_list = []
-
-            if len(all_unique_refs) > 0:
-                for ref in all_unique_refs:
-                    documenttitel = None
-                    dossiertitel = None
-                    resource = None
-                    html_url = None
-                    for key, value in combined_tuples:
-                        if key == ref:
-                            resource = value
-                            break
-                    if resource is None:
-                        raise KeyError("Resource not found")
-                    dossier = False
-                    if isinstance(resource, list):  # Kamerdossier
-                        resource = resource[0]
-                        dossiertitel = resource.dossiertitel[0]
-                        html_url = next(
-                            (d["html"] for d in resource.itemUrl if "html" in d), None
+                if xml_url is not None:
+                    tuple_existing_refs, tuple_explicit_refs, tuple_local_alias_refs = (
+                        extract_links_from_minute(
+                            xml_url=xml_url, existing_references=minute.behandeldDossier
                         )
-                    else:  # Kamerstuk
-                        dossiertitel = resource.dossiertitel[0]
-                        documenttitel = resource.documenttitel[0]
-                        html_url = next(
-                            (d["html"] for d in resource.itemUrl if "html" in d), None
-                        )
+                    )
 
-                    row = {
-                        "foi_dossierId": str(handeling_id_woogle),
-                        "dc_externalIdentifier": str(
-                            handeling_id_officielebekendmakingen
-                        ),
-                        "dc_itemUrlHtml": str(html_url),
-                        "available": str(available),
-                        "ref": str(ref),
-                        "title": str(documenttitel),
-                        "dossiertitel": str(dossiertitel),
-                        "countOriginal": count_original.get(ref, 0),
-                        "countDetectedExplicit": count_detected_explicit.get(ref, 0),
-                        "countDetectedLocalAlias": count_detected_local_alias.get(
-                            ref, 0
-                        ),
-                    }
+                    combined_tuples = tuple_existing_refs.copy()
+                    combined_tuples.extend(tuple_explicit_refs)
+                    combined_tuples.extend(tuple_local_alias_refs)
 
-                    rows_list.append(row)
+                    count_original = Counter(
+                        [key for key, value in tuple_existing_refs]
+                    )
+                    count_detected_explicit = Counter(
+                        [key for key, value in tuple_explicit_refs]
+                    )
+                    count_detected_local_alias = Counter(
+                        [key for key, value in tuple_local_alias_refs]
+                    )
 
-                new_rows_df = pd.DataFrame(rows_list)
-                df_dump = pd.concat([df_dump, new_rows_df], ignore_index=True)
-            else:
-                continue
+                    all_unique_refs = set(
+                        [key for key, value in tuple_existing_refs]
+                        + [key for key, value in tuple_explicit_refs]
+                        + [key for key, value in tuple_local_alias_refs]
+                    )
+
+                    rows_list = []
+
+                    if len(all_unique_refs) > 0:
+                        for ref in all_unique_refs:
+                            documenttitel = None
+                            dossiertitel = None
+                            resource = None
+                            html_url = None
+                            for key, value in combined_tuples:
+                                if key == ref:
+                                    resource = value
+                                    break
+                            if resource is None:
+                                raise KeyError("Resource not found")
+                            dossier = False
+                            if isinstance(resource, list):  # Kamerdossier
+                                resource = resource[0]
+                                if len(resource.dossiertitel) > 0:
+                                    dossiertitel = resource.dossiertitel[0]
+                                else:
+                                    dossiertitel = resource.title[0]
+                                html_url = next(
+                                    (
+                                        d["html"]
+                                        for d in resource.itemUrl
+                                        if "html" in d
+                                    ),
+                                    None,
+                                )
+                            else:  # Kamerstuk
+                                if len(resource.dossiertitel) > 0:
+                                    dossiertitel = resource.dossiertitel[0]
+                                else:
+                                    dossiertitel = resource.title[0]
+                                if len(resource.documenttitel) > 0:
+                                    documenttitel = resource.documenttitel[0]
+                                else:
+                                    documenttitel = resource.title[0]
+                                html_url = next(
+                                    (
+                                        d["html"]
+                                        for d in resource.itemUrl
+                                        if "html" in d
+                                    ),
+                                    None,
+                                )
+
+                            row = {
+                                "foi_dossierId": str(handeling_id_woogle),
+                                "dc_externalIdentifier": str(
+                                    handeling_id_officielebekendmakingen
+                                ),
+                                "dc_itemUrlHtml": str(html_url),
+                                "available": str(available),
+                                "ref": str(ref),
+                                "title": str(documenttitel),
+                                "dossiertitel": str(dossiertitel),
+                                "countOriginal": count_original.get(ref, 0),
+                                "countDetectedExplicit": count_detected_explicit.get(
+                                    ref, 0
+                                ),
+                                "countDetectedLocalAlias": count_detected_local_alias.get(
+                                    ref, 0
+                                ),
+                            }
+
+                            rows_list.append(row)
+
+                        new_rows_df = pd.DataFrame(rows_list)
+                        df_dump = pd.concat([df_dump, new_rows_df], ignore_index=True)
+                    else:
+                        continue
 
         # Save intermediate chunk results to CSV
         chunk_filename = output_folder + "chunks/" + f"dump_chunk_{chunk_index}.csv"
@@ -146,13 +173,13 @@ def generate_dump(
     df_identifiers = df[["dc_externalIdentifier", "foi_dossierId"]]
 
     # FOR DEBUGGING
-    df_identifiers = df_identifiers.sample(20)
+    # df_identifiers = df_identifiers.sample(250)
 
     df_chunks = np.array_split(df_identifiers, number_of_chunks)
 
     with ThreadPoolExecutor(max_workers=number_of_threads) as executor:
         futures = [
-            executor.submit(dumper, chunk, i, (len(df_identifiers)))
+            executor.submit(dumper, chunk, i, len(df_identifiers))
             for i, chunk in enumerate(df_chunks)
         ]
 
@@ -178,7 +205,6 @@ def generate_dump(
 
 generate_dump(
     woogle_dump_path="/Users/pascalvenema/Documents/GitHub/bachelors-thesis/Notebooks/Pipeline/docs/woo_handelingen_excl_bodytext.csv",
-    output_folder="/Volumes/Samsung Portable SSD T5 Media/refactor/",
-    number_of_chunks=2,
-    number_of_threads=2,
+    output_folder="/Users/pascalvenema/Desktop/refactor/",
+    number_of_threads=4,
 )
