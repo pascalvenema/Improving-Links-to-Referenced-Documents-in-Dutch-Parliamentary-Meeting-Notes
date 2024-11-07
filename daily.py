@@ -67,7 +67,9 @@ def extract_links_from_minute(minute_id=None, xml_url=None, existing_references=
     Extracts links (already existing + automatically detected) from a minute based on the given minute_id.
 
     Args:
+        minute_id (str): The ID of the inpute minute (Handeling).
         xml_url (str): The URL to the XML of the input minute (Handeling).
+        existing_references ()
 
     Returns:
         tuple: A tuple containing the following:
@@ -77,8 +79,6 @@ def extract_links_from_minute(minute_id=None, xml_url=None, existing_references=
     Raises:
         ValueError: If no publications are found for the given minute_id.
     """
-    xml_url = xml_url
-    existing_references = existing_references
     if xml_url == None and existing_references == None:
         publications = retrieve_publications(
             query_list=["dt.identifier == " + minute_id]
@@ -119,7 +119,6 @@ def extract_links_from_minute(minute_id=None, xml_url=None, existing_references=
         validated_extracted_explicit_references,
         validated_extracted_local_alias_references,
     )
-
 
 
 # Sample usage
